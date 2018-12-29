@@ -85,7 +85,12 @@ class PMF():
 
   				w1_P1_inc = momentum*w1_P1_inc + epsilon*dw1_P1/N;
   				w1_P1 =  w1_P1 - w1_P1_inc;"""
+	
+	def get_w1_W1(self):
+		return self.w1_W1
 
+	def get_w1_H1(self):
+		return self.w1_H1		
 
 # read .gml
 G = nx.read_gml('data/dolphins-v62-e159/dolphins.gml') # 62 vertices
