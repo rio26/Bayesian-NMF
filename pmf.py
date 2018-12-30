@@ -20,7 +20,7 @@ class PMF():
 
 		# initialize train and test sample.
 		self.train_sample = np.copy(A[0:self.train_sample_size,0:self.train_sample_size])
-		self.test_sample = np.copy(A[self.train_sample_size:, self.train_sample_size:])
+		self.test_sample = np.copy(A[self.train_sample_size:,:])
 
 		self.numbatches= 5; # Number of batches  
 		self.num_feature = 10; # Rank 10 decomposition 
@@ -44,8 +44,6 @@ class PMF():
 				pred_out = np.multiply(self.w1_W1[aa_w,:],self.w1_H1[aa_h,:]).sum(axis=1)
 				f = sum( np.power((pred_out - aa),2) + 0.5 * self.reg *((np.power(self.w1_W1[aa_w,:],2) + np.power(self.w1_H1[aa_h,:],2)).sum(axis=1)))
 
-				print(f)
-
 				''' Compute Gradient'''
 				IO = np.tile(2*np.array([pred_out - aa]).T, (1, self.num_feature))
 				Ix_w = np.multiply(IO, self.w1_H1[aa_h,:]) + self.reg*self.w1_W1[aa_w,:]
@@ -63,16 +61,26 @@ class PMF():
 
 				self.w1_H1_inc = self.momentum* self.w1_H1_inc + self.epsilon*dw1_H1/N
 				self.w1_H1 = self.w1_H1 - self.w1_H1_inc
-				
-				"""
-				%%%% Update movie and user features %%%%%%%%%%%
 
-  				w1_M1_inc = momentum*w1_M1_inc + epsilon*dw1_M1/N;
- 				 w1_M1 =  w1_M1 - w1_M1_inc;
+				''' Compute Prediction after Parameter Updates'''
+				pred_out = np.multiply(self.w1_W1[aa_w,:],self.w1_H1[aa_h,:]).sum(axis=1)
+				f_s = sum( np.power((pred_out - aa),2) + 0.5 * self.reg *((np.power(self.w1_W1[aa_w,:],2) + np.power(self.w1_H1[aa_h,:],2)).sum(axis=1)))
 
-  				w1_P1_inc = momentum*w1_P1_inc + epsilon*dw1_P1/N;
-  				w1_P1 =  w1_P1 - w1_P1_inc;"""
+				# print(f_s)
 	
+	def validation(self):
+		# print(self.test_sample)
+		aa_w = self.test_sample[:,0]
+		aa_h = self.test_sample[:,1]
+		aa_A = self.test_sample[:,2]
+
+		pred = np.multiply(self.w1_H1[aa_h,:], self.w1_W1[aa_w,:]).sum(axis=1) + self.mean_aij
+		print(pred.shape)
+		error = math.sqrt(((pred - aa_A)*(pred - aa_A)).sum()/ aa_A.shape[0] )
+		return error
+
+
+
 	def get_w1_W1(self):
 		return self.w1_W1
 

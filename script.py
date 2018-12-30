@@ -21,6 +21,7 @@ PMF
 A = PMF.read_triplets(file='edge.txt')
 pmf = PMF(A, train_size=0.7)
 pmf.train()
+pmf.validation()
 
 """
 Bayesian NMF
