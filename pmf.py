@@ -75,11 +75,8 @@ class PMF():
 		aa_A = self.test_sample[:,2]
 
 		pred = np.multiply(self.w1_H1[aa_h,:], self.w1_W1[aa_w,:]).sum(axis=1) + self.mean_aij
-		print(pred.shape)
 		error = math.sqrt(((pred - aa_A)*(pred - aa_A)).sum()/ aa_A.shape[0] )
 		return error
-
-
 
 	def get_w1_W1(self):
 		return self.w1_W1
