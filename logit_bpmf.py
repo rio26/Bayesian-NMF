@@ -72,12 +72,11 @@ class LNMF():
 			""" Sample hyperparameter conditioned on the 
     		current column and row features."""
 			w_bar = self.w1_W1_sample.mean(axis=0)  # (n, 1)
-			print("w_bar's shape", w_bar.shape)
+			# print("w_bar's shape", w_bar.shape)
 			w_cov = np.cov(self.w1_W1_sample) # (r,r)
 			# print(w_cov.shape)
-			tmp1 = np.dot(self.mu0_w-w_bar,(self.mu0_w-w_bar).T)
-			print("tmp1",tmp1.shape)
-			WI_post = inv(self.WI_w_inv + N_w*w_cov + (self.b0_w*N_w*tmp1)/(self.b0_w+N_w))
+			WI_post = inv(self.WI_w_inv + N_w*w_cov +\
+				(self.b0_w*N_w*np.dot(self.mu0_w-w_bar,(self.mu0_w-w_bar).T))/(self.b0_w+N_w))
 			print("WI_post", WI_post.shape)
 			# Beta_0_star = self.Beta_0 + self.Asize
 			# nu_0_star = self.nu_0 + self.Asize
