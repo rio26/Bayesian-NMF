@@ -4,7 +4,7 @@ import random, math
 import networkx as nx
 
 class PMF():
-	def __init__(self, A, train_size, max_iter=100, epsilon=50, reg = 0.01, momentum=0.8, maxepoch = 50):
+	def __init__(self, A, train_size,num_feature=5, max_iter=100, epsilon=50, reg = 0.01, momentum=0.8, maxepoch = 50):
 		self.epsilon = epsilon # Learning rate
 		self.reg = reg # Regularization parameter
 		self.momentum=momentum 
@@ -84,14 +84,16 @@ class PMF():
 	def get_w1_H1(self):
 		return self.w1_H1		
 
-	def convert_triplets(file):	
+	def convert_triplets(output_file, mat):	
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""
 		# with open('edge.txt', 'a') as f:
-		with open(file, 'a') as f:
-			for i in range(self.Asize):
-				for j in range(i, self.Asize):
-					if A[i,j] == 1:
+		with open(output_file, 'a') as f:
+			for i in range(mat.shape[0]):
+				for j in range(i, mat.shape[0]):
+					if mat[i,j] == 1:
 						f.write('{} {} 1\n'.format(i, j))
+					else:
+						f.write('{} {} 0\n'.format(i, j))
 		f.close()
 
 	def read_triplets(file):
