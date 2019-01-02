@@ -4,7 +4,7 @@ from numpy.random import multivariate_normal
 from scipy.stats import wishart
 
 
-def Normal_Wishart(mu_0, lamb, W, nu, seed=None):
+def Gaussian_Wishart(mu_0, lamb, W, nu, seed=None):
     """Function extracting a Normal_Wishart random variable"""
     # first draw a Wishart distribution:
     Lambda = wishart(df=nu, scale=W, seed=seed).rvs()  # NB: Lambda is a matrix.

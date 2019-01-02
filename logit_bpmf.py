@@ -3,6 +3,7 @@ import random
 import pandas as pd
 from numpy.random import multivariate_normal
 from scipy.stats import wishart
+from utilities import Gaussian_Wishart
 from numpy.linalg import inv
 from time import time
 
@@ -22,66 +23,78 @@ class LNMF():
 		self.error_trend = np.zeros((max_iter))
 
 		""" Initialize the hierarchical priors: """
-		self.beta =2 # observation noise (precision)
-		self.mu_w = np.zeros((r, 1))
-		self.mu_h = np.zeros((r, 1))
-		self.alpha_w = np.eye(r)
-		self.alpha_h = np.eye(r)
+		# self.mu_w = np.zeros((r, 1))
+		# self.mu_h = np.zeros((r, 1))
+		# self.alpha_w = np.eye(r)
+		# self.alpha_h = np.eye(r)
 		
 		""" 
 	    Parameters for Inverse-Wishart distribution
     	Assuming that parameters for both U and V are the same.
     	"""
 		self.WI_w = np.eye(r)
-		self.WI_w_inv = inv(self.WI_w)   # rxr
-		self.b0_w = 2
-		self.df_w = r
+		self.WI_w_inv = inv(self.WI_w)   	# rxr
 		self.mu0_w = np.zeros((r, 1))
 
 		self.WI_h = np.eye(r)
-		self.WI_h_inv = inv(self.WI_h)
-		self.b0_h = 2
-		self.df_h = r
+		self.WI_h_inv = inv(self.WI_h)   	# rxr
 		self.mu0_h = np.zeros((r, 1))
+
+		self.b0 = 2							# observation noise (precision)
+		df = r 								# degree of freedom
+		self.beta = self.b0 + self.r 		# fixed
+		self.nu = df + self.r 				# fixed 
 
 		"""
 		Initialization Bayesian PMF using MAP solution found by PMF
 		"""
 		self.w1_W1_sample = w1_W1.T
-		# print("input sample size", self.w1_W1_sample.shape)
 		self.w1_H1_sample = w1_H1.T
-		# print(self.w1_H1_sample.shape)
+		print("Input sample size, W: ", self.w1_W1_sample.shape,\
+			"\nInput sample size, H: ", self.w1_H1_sample.shape)
+
 		self.mu_w = np.array([w1_W1.mean(0)]).T
-		alpha_w = inv(np.cov(w1_W1))
+		self.alpha_w = np.eye(r)
+		# self.alpha_w = inv(np.cov(w1_W1))
 		
 		self.mu_h = np.array([w1_H1.mean(0)]).T
-		alpha_h = inv(np.cov(w1_H1))
+		self.alpha_h = np.eye(r)
+		# self.alpha_h = inv(np.cov(w1_H1))
+ 
 		print("LNMF Initialization done.")
 
-		# self.mu_0 = np.zeros(r)
-		# self.nu_0 = r
-		# self.Beta_0 = 2
-		# self.W_0 = np.eye(r)
-
 	def train(self):
-		print("Training...")
+		print("\nTraining...")
 		N_w = self.w1_W1_sample.shape[0]
+		N_h = self.w1_H1_sample.shape[0]
+		# print(N_w, N_h)
+
+		# nu_0_star = self.nu_0 + self.Asize
+		# W_0_inv = np.linalg.inv(W_0) # compute the inverse once and for all
 		# print("line 67", N)
 		iteration = self.max_iter
 		for i in range(iteration):
-			""" Sample hyperparameter conditioned on the 
-    		current column and row features."""
-			w_bar = self.w1_W1_sample.mean(axis=0)  # (n, 1)
-			# print("w_bar's shape", w_bar.shape)
+			""" Sample hyperparameter conditioned on the current COLUMN features."""
+			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
 			w_cov = np.cov(self.w1_W1_sample) # (r,r)
-			# print(w_cov.shape)
-			WI_post = inv(self.WI_w_inv + N_w*w_cov +\
-				(self.b0_w*N_w*np.dot(self.mu0_w-w_bar,(self.mu0_w-w_bar).T))/(self.b0_w+N_w))
-			print("WI_post", WI_post.shape)
-			# Beta_0_star = self.Beta_0 + self.Asize
-			# nu_0_star = self.nu_0 + self.Asize
-			# W_0_inv = np.linalg.inv(W_0) # compute the inverse once and for all
+			WI_post = self.compute_wishart0(mat=self.WI_w_inv, n=N_w, cov=w_cov,mu0=self.mu0_w,s_bar=w_bar)
+			mu_tmp = ((self.b0*self.mu0_w + N_w*w_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta] 
+			self.mu_w, self.alpha_w, lamd_w = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)
 
+
+			""" Sample hyperparameter conditioned on the current ROW features."""
+			h_bar = self.w1_H1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
+			h_cov = np.cov(self.w1_H1_sample) # (r,r)
+			WI_post = self.compute_wishart0(mat=self.WI_h_inv ,n =N_h, cov=h_cov, mu0=self.mu0_h, s_bar=h_bar)	
+			mu_tmp = ((self.b0*self.mu0_w + N_h*h_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta] 
+			self.mu_h, self.alpha_h, lamd_h = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)
+
+			# print(self.mu_w, self.mu_h)
+
+	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
+		wi = inv(mat + n*cov + (self.b0*n*np.dot(mu0-s_bar,(mu0-s_bar).T))/(self.b0+n))
+		print("computed and obtained size", wi.shape)
+		return (wi+wi.T)/2
 
 	def convert_triplets(file):	
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""
