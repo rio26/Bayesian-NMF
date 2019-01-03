@@ -108,9 +108,11 @@ def BPMF(R, R_test, U_in, V_in, T, D, initial_cutoff, lowest_rating, highest_rat
         # print (U_average.shape)
         S_bar_U = np.dot(U_old, np.transpose(U_old)) / N  # CHECK IF THIS IS RIGHT! #it is DxD
         mu_0_star_U = (Beta_0 * mu_0 + N * U_average) / (Beta_0 + N)
+
         W_0_star_U_inv = W_0_inv + N * S_bar_U + Beta_0 * N / (Beta_0 + N) * np.dot(
             np.transpose(np.array(mu_0 - U_average, ndmin=2)), np.array((mu_0 - U_average), ndmin=2))
         W_0_star_U = np.linalg.inv(W_0_star_U_inv)
+        
         mu_U, Lambda_U, cov_U = Normal_Wishart(mu_0_star_U, Beta_0_star, W_0_star_U, nu_0_star, seed=None)
 
         # print (S_bar_U.shape, S_bar_V.shape)

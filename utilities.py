@@ -13,6 +13,9 @@ def Gaussian_Wishart(mu_0, lamb, W, nu, seed=None):
     mu = multivariate_normal(mu_0, cov)
     return mu, Lambda, cov
 
+def Logit_Normal(x, sigma):
+    return
+
 
 def reduce_matrix(N_max, M_max, filename, correspondence_list_users, correspondence_list_movies, sep=" "):
     """In some datasets, the movies and users have a certain identifier that corresponds to one

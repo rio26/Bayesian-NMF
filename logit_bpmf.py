@@ -89,12 +89,19 @@ class LNMF():
 			mu_tmp = ((self.b0*self.mu0_w + N_h*h_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta] 
 			self.mu_h, self.alpha_h, lamd_h = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)
 
-			# print(self.mu_w, self.mu_h)
+			for gibbs in range(2):
+				### This can be done by multi-threads to speed up if Asize is large. ###
+				for i in range(self.Asize):
+					return
+
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
 		wi = inv(mat + n*cov + (self.b0*n*np.dot(mu0-s_bar,(mu0-s_bar).T))/(self.b0+n))
 		print("computed and obtained size", wi.shape)
 		return (wi+wi.T)/2
+
+	def sigmoid(x):
+		return 1.0 / (1.0 + np.exp(-x))
 
 	def convert_triplets(file):	
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""
