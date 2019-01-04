@@ -14,6 +14,7 @@ def Normal_Wishart(mu_0, lamb, W, nu, seed=None):
     return mu, Lambda, cov
 
 
+
 def reduce_matrix(N_max, M_max, filename, correspondence_list_users, correspondence_list_movies, sep=" "):
     """In some datasets, the movies and users have a certain identifier that corresponds to one
        of a larger dataset; this means not all the user/movie identifier are used. Then it is better to
@@ -22,7 +23,6 @@ def reduce_matrix(N_max, M_max, filename, correspondence_list_users, corresponde
        correspondence_list_users = [1,3,7] means that the users 1,3,7 are respectively the 1st, 2nd and 3rd. Then
        they could be renamed in this way, saving a lot of space.
        """
-
     # first call ranking_matrix on the filename, generating a big matrix (many rows/columns will be empty)
     R = ranking_matrix(N_max, M_max, filename, sep)
 

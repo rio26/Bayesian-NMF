@@ -6,10 +6,13 @@ import networkx as nx
 from logit_bpmf import LNMF
 from pmf import PMF
 
+
+
 """ read .gml & initialize triplets data form """
 # G = nx.read_gml('data/dolphins-v62-e159/dolphins.gml') # 62 vertices
 # mat = nx.adjacency_matrix(G).todense()   #(62，62)   
 # PMF.convert_triplets('test_case1.txt', mat)
+
 
 r=10
 

@@ -3,7 +3,7 @@ import random
 import pandas as pd
 from numpy.random import multivariate_normal
 from scipy.stats import wishart
-from utilities import Gaussian_Wishart
+from utilities import Gaussian_Wishart, gaussian_error
 from numpy.linalg import inv
 from time import time
 
@@ -20,6 +20,7 @@ class LNMF():
 		self.r = r
 		self.max_iter = max_iter
 		self.mean_a = np.sum(A[:,2]) / self.Asize
+		self.gaussian_errors = gaussian_error(10000, 1) ## check sigma later
 		self.error_trend = np.zeros((max_iter))
 
 		""" Initialize the hierarchical priors: """
@@ -73,7 +74,7 @@ class LNMF():
 		# W_0_inv = np.linalg.inv(W_0) # compute the inverse once and for all
 		# print("line 67", N)
 		iteration = self.max_iter
-		for i in range(iteration):
+		for ite in range(iteration):
 			""" Sample hyperparameter conditioned on the current COLUMN features."""
 			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
 			w_cov = np.cov(self.w1_W1_sample) # (r,r)
@@ -91,16 +92,29 @@ class LNMF():
 
 			for gibbs in range(2):
 				### This can be done by multi-threads to speed up if Asize is large. ###
-				for i in range(self.Asize):
+				# for i in range(self.Asize):  # Sample W
+				for i in range(2):
+					# MCMC for finding the mean of logit normal
+					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
+					# print("tmp_w",tmp_w.shape)
+					for j in range(self.Asize):
+						tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)) # (r,1)
+						tmp_mu =  np.dot(tmp_w,tmp_h) # (1,1)
+						Y = tmp_mu + self.gaussian_errors # (10000,1)
+						logit_y = self.logistic(Y) # (10000,1)
+						l_mean = np.mean(logit_y)
+						print("Y", l_mean)
 					return
-
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
 		wi = inv(mat + n*cov + (self.b0*n*np.dot(mu0-s_bar,(mu0-s_bar).T))/(self.b0+n))
 		print("computed and obtained size", wi.shape)
 		return (wi+wi.T)/2
 
-	def sigmoid(x):
+	def logit_nomral_mean():
+		return
+
+	def logistic(self,x):
 		return 1.0 / (1.0 + np.exp(-x))
 
 	def convert_triplets(file):	
