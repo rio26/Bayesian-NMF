@@ -96,23 +96,29 @@ class LNMF():
 				for i in range(2):
 					# MCMC for finding the mean of logit normal
 					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
-					# print("tmp_w",tmp_w.shape)
+					tmp_mean = 0
 					for j in range(self.Asize):
-						tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)) # (r,1)
-						tmp_mu =  np.dot(tmp_w,tmp_h) # (1,1)
-						Y = tmp_mu + self.gaussian_errors # (10000,1)
-						logit_y = self.logistic(Y) # (10000,1)
-						l_mean = np.mean(logit_y)
-						print("Y", l_mean)
-					return
+						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+						tmp_mean = tmp_mean + mean_j
+						# print(j)
+						# print(mean_j)
+					print(tmp_mean/self.Asize)
+
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
 		wi = inv(mat + n*cov + (self.b0*n*np.dot(mu0-s_bar,(mu0-s_bar).T))/(self.b0+n))
 		print("computed and obtained size", wi.shape)
 		return (wi+wi.T)/2
 
-	def logit_nomral_mean():
-		return
+	# a (1,r)
+	# b (r,1)
+	def logit_nomral_mean(self, a,b, error):
+		mu = np.dot(a,b)
+		Y = mu + error
+		# Y = mu + gaussian_error(10000, 1)
+		logit_y = self.logistic(Y) # (10000,1)
+		mean = np.mean(logit_y)
+		return mean
 
 	def logistic(self,x):
 		return 1.0 / (1.0 + np.exp(-x))
