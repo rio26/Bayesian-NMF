@@ -75,8 +75,6 @@ class PMF():
 				''' Compute Gradient'''
 				IO = np.tile(2*np.array([pred_out - aa]).T, (1, self.num_feature))
 				Ix_w = np.multiply(IO,a) + self.reg*a
-				if batch < 1:
-					print(Ix_w)
 				Ix_h = np.multiply(IO,b) + self.reg*b
 				dw1_W1 = np.zeros((self.wsize,self.num_feature))
 				dw1_H1 = np.zeros((self.hsize,self.num_feature))
@@ -86,9 +84,9 @@ class PMF():
 					dw1_W1[aa_w[ii],:] =  dw1_W1[aa_w[ii],:] +  Ix_w[ii,:]
 					dw1_H1[aa_h[ii],:] =  dw1_H1[aa_h[ii],:] +  Ix_h[ii,:]
 
-				# print(dw1_W1)
 				''' Update movie and user features'''
 				self.w1_W1_inc = self.momentum* self.w1_W1_inc + self.epsilon*dw1_W1/N
+				print(self.w1_W1_inc)
 				self.w1_W1 = self.w1_W1 - self.w1_W1_inc
 
 				self.w1_H1_inc = self.momentum* self.w1_H1_inc + self.epsilon*dw1_H1/N
@@ -104,6 +102,8 @@ class PMF():
 
 				f2_s= (np.power(a,2) + np.power(b,2)).sum(axis=1)
 				fs = (np.power(pred_out-aa,2) +0.5*self.reg*(f2_s)).sum()
+				error = math.sqrt(fs/N)
+				# print("error for loop ", epoch, " is ",error)
 				# print("fffff" , fs)
 
 				# print(f_s)

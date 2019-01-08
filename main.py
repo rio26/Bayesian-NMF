@@ -20,7 +20,7 @@ r=5
 """  PMF  """
 A = PMF.read_triplets(file='test_case1.txt')
 # pmf = PMF(A, Asize=matsize , num_feature=r, train_size=0.7)
-pmf = PMF(A, mat, Asize=matsize, num_feature=r, train_size=0.7, maxepoch = 1)
+pmf = PMF(A, mat, Asize=matsize, num_feature=r, train_size=0.7, maxepoch = 5)
 t1 = time()
 pmf.train()
 t2 = time()
@@ -31,7 +31,7 @@ print("Current error is: ", error)
 w0 = pmf.get_w1_W1()
 h0 = pmf.get_w1_H1()
 print("w0 and h0\n", w0.shape, "\n", h0.shape)
-print(w0)
+# print(w0)
 # """  Bayesian NMF  """
 # lnmf = LNMF(A, r=r, w1_W1=w0, w1_H1=h0, max_iter = 1)
 # lnmf.train()
