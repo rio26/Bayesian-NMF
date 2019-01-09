@@ -17,6 +17,9 @@ class LNMF():
 		print("Initializing...")
 		self.maxepoch = maxepoch
 		self.Asize = A.shape[0]
+		self.wsize = mat.shape[0]
+		self.hsize = mat.shape[1]
+
 		self.r = r
 		self.max_iter = max_iter
 		self.mean_a = np.sum(A[:,2]) / self.Asize
