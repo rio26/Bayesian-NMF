@@ -20,7 +20,7 @@ r=5
 """  PMF  """
 A = PMF.read_triplets(file='test_case1.txt')
 # pmf = PMF(A, Asize=matsize , num_feature=r, train_size=0.7)
-pmf = PMF(A, mat, Asize=matsize, num_feature=r, train_size=0.7, maxepoch = 5)
+pmf = PMF(A, mat, Asize=matsize, num_feature=r, maxepoch = 100, train_size=0.7, epsilon=50, reg = 0.01, momentum=0.8)
 t1 = time()
 pmf.train()
 t2 = time()

@@ -56,12 +56,12 @@ class PMF():
 
 			for batch in range(1, self.numbatches-1):
 				N = math.ceil(self.Asize/self.numbatches) # number training triplets per batch
-				aa_w = np.array(train_vector[((batch-1)*N):batch*N, 0]) # (N,)
 
-				aa_h = train_vector[((batch-1)*N):batch*N, 1] # (N,)
-				aa_len = np.array(range(0, self.num_feature)) # (r,)
+				aa_w = np.array(train_vector[((batch-1)*N):batch*N, 0]) # (N,)
+				aa_h = train_vector[((batch-1)*N):batch*N, 1] # (N,)	
 				aa = train_vector[((batch-1)*N):batch*N, 2]   # (N,)
 				aa = aa - self.mean_aij   # (N,) Default prediction is the mean of adjacency matrix A. 
+				aa_len = np.array(range(0, self.num_feature)) # (r,)
 
 				a = self.w1_W1[np.ix_(aa_w, aa_len)] # (N,r)
 				b = self.w1_H1[np.ix_(aa_h, aa_len)] # (N,r)
@@ -73,9 +73,10 @@ class PMF():
 				# print("fffff" , f)
 
 				''' Compute Gradient'''
-				IO = np.tile(2*np.array([pred_out - aa]).T, (1, self.num_feature))
-				Ix_w = np.multiply(IO,a) + self.reg*a
-				Ix_h = np.multiply(IO,b) + self.reg*b
+				IO = np.tile(2*np.array([pred_out - aa]).T, (1, self.num_feature)) #(N,r)
+				# print("IOIOIOIO",IO.shape)
+				Ix_w = np.multiply(IO,b) + self.reg*a
+				Ix_h = np.multiply(IO,a) + self.reg*b
 				dw1_W1 = np.zeros((self.wsize,self.num_feature))
 				dw1_H1 = np.zeros((self.hsize,self.num_feature))
 				# print("dw1_W1 & dw1_H1" ,dw1_H1.shape, "hellow", self.num_feature)
@@ -83,10 +84,11 @@ class PMF():
 				for ii in range(N-1):
 					dw1_W1[aa_w[ii],:] =  dw1_W1[aa_w[ii],:] +  Ix_w[ii,:]
 					dw1_H1[aa_h[ii],:] =  dw1_H1[aa_h[ii],:] +  Ix_h[ii,:]
+					# print(dw1_W1[aa_w[ii],:])
 
 				''' Update movie and user features'''
 				self.w1_W1_inc = self.momentum* self.w1_W1_inc + self.epsilon*dw1_W1/N
-				print(self.w1_W1_inc)
+				# print(self.w1_W1_inc)
 				self.w1_W1 = self.w1_W1 - self.w1_W1_inc
 
 				self.w1_H1_inc = self.momentum* self.w1_H1_inc + self.epsilon*dw1_H1/N
@@ -103,7 +105,7 @@ class PMF():
 				f2_s= (np.power(a,2) + np.power(b,2)).sum(axis=1)
 				fs = (np.power(pred_out-aa,2) +0.5*self.reg*(f2_s)).sum()
 				error = math.sqrt(fs/N)
-				# print("error for loop ", epoch, " is ",error)
+				print("error for loop ", epoch, " is ",error)
 				# print("fffff" , fs)
 
 				# print(f_s)
@@ -113,8 +115,12 @@ class PMF():
 		aa_w = self.test_sample[:,0]
 		aa_h = self.test_sample[:,1]
 		aa_A = self.test_sample[:,2]
+		aa_len = np.array(range(0, self.num_feature))
 
-		pred = np.multiply(self.w1_H1[aa_h,:], self.w1_W1[aa_w,:]).sum(axis=1) + self.mean_aij
+		a = self.w1_W1[np.ix_(aa_w, aa_len)] # (N,r)
+		b = self.w1_H1[np.ix_(aa_h, aa_len)] # (N,r)
+
+		pred = np.multiply(a, b).sum(axis=1) + self.mean_aij
 		error = math.sqrt(((pred - aa_A)*(pred - aa_A)).sum()/ aa_A.shape[0] )
 		return error
 
