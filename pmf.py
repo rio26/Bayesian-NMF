@@ -82,9 +82,7 @@ class PMF():
 				f2_s= (np.power(a,2) + np.power(b,2)).sum(axis=1)
 				fs = (np.power(pred_out-aa,2) +0.5*self.reg*(f2_s)).sum()
 				error = math.sqrt(fs/N)
-				print("error for loop ", epoch, " is ",error)
-
-				# print(f_s)
+				# print("error for loop ", epoch, " is ",error)
 	
 	def validation(self):
 		# print(self.test_sample)
