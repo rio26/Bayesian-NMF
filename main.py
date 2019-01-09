@@ -32,8 +32,10 @@ h0 = pmf.get_w1_H1()
 print("w0 and h0\n", w0.shape, "\n", h0.shape)
 
 
+# np.triu (triangle-upper) and np.tril (triangle-lower) 
 """  Bayesian NMF  """
-lnmf = LNMF(A,mat, r=r, w1_W1=w0, w1_H1=h0, max_iter = 1)
+mat_upper = np.triu(mat)
+lnmf = LNMF(A,mat_upper, r=r, w1_W1=w0, w1_H1=h0, max_iter = 1)
 lnmf.train()
 
 
