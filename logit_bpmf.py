@@ -90,18 +90,26 @@ class LNMF():
 				for i in range(self.wsize):  # Sample W
 				# for i in range(2):
 					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
+					tmp_mean = 1
+					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+					# print(wi_pdf)
+					
+					for j in range(self.hsize):
+						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+						tmp_mean = tmp_mean * mean_j
+						# tmp_mean = tmp_mean + mean_j
+						# print(j)
+						# print(mean_j)
+					print(tmp_mean * wi_pdf)
+				for j in range(self.hsize):  # Sample W
+				# for i in range(2):
+					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
 					tmp_mean = 0
 					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
 					
 					for j in range(self.hsize):
 						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
-						
-						
 	
-						# tmp_mean = tmp_mean + mean_j
-						# print(j)
-						# print(mean_j)
-					# print(tmp_mean/self.Asize)
 
 # np.random.binomial(size=3, n=1, p= 0.5)
 
