@@ -20,6 +20,7 @@ class LNMF():
 		self.wsize = mat.shape[0]
 		self.hsize = mat.shape[1]
 
+		self.mat = mat
 		self.r = r
 		self.max_iter = max_iter
 		self.mean_a = np.sum(A[:,2]) / self.Asize
@@ -94,13 +95,16 @@ class LNMF():
 					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
 					# print(wi_pdf)
 					
-					for j in range(self.hsize):
+					for j in range(i, self.hsize):
 						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
-						tmp_mean = tmp_mean * mean_j
+						if(self.mat[i,j] == 1):
+							tmp_mean = tmp_mean * mean_j
+						else:
+							tmp_mean = tmp_mean * (1-mean_j)
 						# tmp_mean = tmp_mean + mean_j
 						# print(j)
 						# print(mean_j)
-					print(tmp_mean * wi_pdf)
+					print(tmp_mean)
 				for j in range(self.hsize):  # Sample W
 				# for i in range(2):
 					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
