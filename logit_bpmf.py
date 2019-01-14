@@ -94,17 +94,23 @@ class LNMF():
 					tmp_mean = 1
 					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
 					# print(wi_pdf)
-
-					for j in range(i, self.hsize):
+					is0 = 0
+					is1 = 0
+					for j in range(self.hsize):
+					# for j in range(i, self.hsize):
 						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+						
 						if(self.mat[i,j] == 1):
 							tmp_mean = tmp_mean * mean_j
+							is1 = is1 + 1 
 						else:
 							tmp_mean = tmp_mean * (1-mean_j)
+							is0 = is0 + 1 
 						# tmp_mean = tmp_mean + mean_j
 						# print(j)
 						# print(mean_j)
 					print(tmp_mean)
+					print("1 has:", is1, "0 has:", is0)
 				for j in range(self.hsize):  # Sample W
 				# for i in range(2):
 					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
