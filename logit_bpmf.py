@@ -12,13 +12,14 @@ class LNMF():
 	A - adjancency matrix
 	r - number of features
 	"""
-	def __init__(self, A, mat, r, w1_W1, w1_H1, maxepoch = 50, max_iter = 100):
+	def __init__(self, A, mat, r, w1_W1, w1_H1, maxepoch = 50, max_iter = 100, burnin = 0):
 		# self.epsilon = epsilon # Learning rate
 		print("Initializing...")
 		self.maxepoch = maxepoch
 		self.Asize = A.shape[0]
 		self.wsize = mat.shape[0]
 		self.hsize = mat.shape[1]
+		self.burnin = burnin
 
 		self.mat = mat
 		self.r = r
@@ -91,35 +92,38 @@ class LNMF():
 				for i in range(self.wsize):  # Sample W
 				# for i in range(2):
 					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
-					tmp_mean = 1
-					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+					tmp_likelihood = 1
+					prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
 					# print(wi_pdf)
-					is0 = 0
-					is1 = 0
+					is0,is1 = 0,0
 					for j in range(self.hsize):
 					# for j in range(i, self.hsize):
 						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
-						
 						if(self.mat[i,j] == 1):
-							tmp_mean = tmp_mean * mean_j
+							tmp_likelihood = tmp_likelihood * mean_j
 							is1 = is1 + 1 
 						else:
-							tmp_mean = tmp_mean * (1-mean_j)
+							tmp_likelihood = tmp_likelihood * (1-mean_j)
 							is0 = is0 + 1 
-						# tmp_mean = tmp_mean + mean_j
-						# print(j)
-						# print(mean_j)
-					print(tmp_mean)
-					print("1 has:", is1, "0 has:", is0)
+					print(tmp_likelihood)
+					# print("1 has:", is1, "0 has:", is0)
+
 				for j in range(self.hsize):  # Sample W
 				# for i in range(2):
-					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
-					tmp_mean = 0
-					wi_pdf = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-
-					for j in range(self.hsize):
-						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
-
+					tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)).T  # (1,r)
+					tmp_likelihood = 1
+					prior_h = mul_normal.pdf(tmp_h.T, self.mu_h, lamd_h) #(r,)
+					is0,is1 = 0,0
+					for i in range(self.wsize):
+						mean_i = self.logit_nomral_mean(a=tmp_h, b=self.w1_W1_sample[:,i].reshape((-1,1)), error=self.gaussian_errors)
+						if(self.mat[j,i] == 1):
+							tmp_likelihood = tmp_likelihood * mean_i
+							is1 = is1 + 1 
+						else:
+							tmp_likelihood = tmp_likelihood * (1-mean_i)
+							is0 = is0 + 1 
+					# print(tmp_likelihood)
+					# print("1 has:", is1, "0 has:", is0)
 
 # np.random.binomial(size=3, n=1, p= 0.5)
 
@@ -139,6 +143,8 @@ class LNMF():
 
 	def logistic(self,x):
 		return 1.0 / (1.0 + np.exp(-x))
+
+
 
 	def convert_triplets(file):
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""
