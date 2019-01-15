@@ -16,7 +16,7 @@ def Gaussian_Wishart(mu_0, lamb, W, nu, seed=None):
     return mu, Lambda, cov
 
 # check sigma later.
-def gaussian_error(num, sigma, mu=0):
+def gaussian_error(sigma, num = 1, mu=0):
     return sigma*np.random.randn(num, 1)
 
 

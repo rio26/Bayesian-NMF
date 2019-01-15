@@ -25,7 +25,7 @@ class LNMF():
 		self.r = r
 		self.max_iter = max_iter
 		self.mean_a = np.sum(A[:,2]) / self.Asize
-		self.gaussian_errors = gaussian_error(10000, 1) ## check sigma later
+		self.gaussian_errors = gaussian_error(sigma=1, num=10000) ## check sigma later
 		self.error_trend = np.zeros((max_iter))
 
 		"""
@@ -63,13 +63,20 @@ class LNMF():
 
 		print("LNMF Initialization done.")
 
-	def train(self):
+	def mh_train(self):
 		print("\nTraining...")
 		N_w = self.w1_W1_sample.shape[0]
 		N_h = self.w1_H1_sample.shape[0]
 		# print(N_w, N_h)
 
 		iteration = self.max_iter
+		posterior_w_old = np.zeros(shape=(self.wsize, self.r))
+		posterior_h_old = np.zeros(shape=(self.hsize, self.r))
+
+		posterior_w_cand = np.zeros(shape=(self.wsize, self.r))
+		posterior_h_cand = np.zeros(shape=(self.hsize, self.r))
+
+
 		for ite in range(iteration):
 			""" Sample hyperparameter conditioned on the current COLUMN features."""
 			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
@@ -85,43 +92,89 @@ class LNMF():
 			WI_post = self.compute_wishart0(mat=self.WI_h_inv ,n =N_h, cov=h_cov, mu0=self.mu0_h, s_bar=h_bar)
 			mu_tmp = ((self.b0*self.mu0_w + N_h*h_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta]
 			self.mu_h, self.alpha_h, lamd_h = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)  # mean (5,), matrix, covariance
-			print("size:", self.alpha_h.shape)
-
-			for gibbs in range(2):
-				### This can be done by multi-threads to speed up if Asize is large. ###
+			# print("size:", self.alpha_h.shape)
+			
+			""" Metropolis Hasting's random walk part"""
+			if(ite == 0):
 				for i in range(self.wsize):  # Sample W
-				# for i in range(2):
-					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T  # (1,r)
+					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T # (1,r)
 					tmp_likelihood = 1
 					prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-					# print(wi_pdf)
-					is0,is1 = 0,0
 					for j in range(self.hsize):
-					# for j in range(i, self.hsize):
 						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
 						if(self.mat[i,j] == 1):
 							tmp_likelihood = tmp_likelihood * mean_j
-							is1 = is1 + 1 
 						else:
 							tmp_likelihood = tmp_likelihood * (1-mean_j)
-							is0 = is0 + 1 
-					print(tmp_likelihood)
-					# print("1 has:", is1, "0 has:", is0)
-
-				for j in range(self.hsize):  # Sample W
-				# for i in range(2):
-					tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)).T  # (1,r)
+					posterior_w_old[i] = prior_w * tmp_likelihood
+			else:
+				for i in range(self.wsize):  # Sample W
+					tmp_w = (self.w1_W1_sample[:,i] + gaussian_error(sigma=1)).reshape((-1,1)).T # (1,r)
 					tmp_likelihood = 1
-					prior_h = mul_normal.pdf(tmp_h.T, self.mu_h, lamd_h) #(r,)
-					is0,is1 = 0,0
-					for i in range(self.wsize):
-						mean_i = self.logit_nomral_mean(a=tmp_h, b=self.w1_W1_sample[:,i].reshape((-1,1)), error=self.gaussian_errors)
-						if(self.mat[j,i] == 1):
-							tmp_likelihood = tmp_likelihood * mean_i
-							is1 = is1 + 1 
+					prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+					for j in range(self.hsize):
+						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+						if(self.mat[i,j] == 1):
+							tmp_likelihood = tmp_likelihood * mean_j
 						else:
-							tmp_likelihood = tmp_likelihood * (1-mean_i)
-							is0 = is0 + 1 
+							tmp_likelihood = tmp_likelihood * (1-mean_j)
+					posterior_w_cand[i] = tmp_likelihood*prior_w
+					print("new ratio",posterior_w_cand[i])
+					print("old", posterior_w_old[i])
+					# minnum =  min(1, posterior_w_cand[i]/posterior_w_old[i].all())
+					# if np.random.uniform() < minnum:
+					# 	posterior_w_old[i] = posterior_w_cand[i]
+					# 	print(true)
+
+					
+
+			# tmp_w = self.w1_W1_sample + gaussian_error(num=self.r, sigma=10) # (r,n)
+			# print("tmp_w",tmp_w.shape)
+			# tmp_likelihood = 1
+			# prior_w = mul_normal.pdf(tmp_w, self.mu_w, lamd_w) #(r,)
+			# print("prior_w",prior_w.shape)
+
+			# for gibbs in range(1):
+			# 	### This can be done by multi-threads to speed up if Asize is large. ###
+			# 	for i in range(self.wsize):  # Sample W
+			# 	# for i in range(2):
+			# 		tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T # (1,r)
+			# 		tmp_likelihood = 1
+			# 		prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+			# 		# print(wi_pdf)
+			# 		is0,is1 = 0,0
+			# 		for j in range(self.hsize):
+			# 		# for j in range(i, self.hsize):
+			# 			mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+			# 			if(self.mat[i,j] == 1):
+			# 				tmp_likelihood = tmp_likelihood * mean_j
+			# 				is1 = is1 + 1 
+			# 			else:
+			# 				tmp_likelihood = tmp_likelihood * (1-mean_j)
+			# 				is0 = is0 + 1 
+			# 		if ite == 1:
+			# 			posterior_w_old = tmp_likelihood * prior_w
+			# 		else:
+			# 			minnum =  min(1, (tmp_likelihood*prior_w)/posterior_w_old)
+			# 			if np.random.uniform() < minnum:
+			# 				print(yes)
+			# 		# print(tmp_likelihood)
+			# 		# print("1 has:", is1, "0 has:", is0)
+
+			# 	for j in range(self.hsize):  # Sample W
+			# 	# for i in range(2):
+			# 		tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)).T  # (1,r)
+			# 		tmp_likelihood = 1
+			# 		prior_h = mul_normal.pdf(tmp_h.T, self.mu_h, lamd_h) #(r,)
+			# 		is0,is1 = 0,0
+			# 		for i in range(self.wsize):
+			# 			mean_i = self.logit_nomral_mean(a=tmp_h, b=self.w1_W1_sample[:,i].reshape((-1,1)), error=self.gaussian_errors)
+			# 			if(self.mat[j,i] == 1):
+			# 				tmp_likelihood = tmp_likelihood * mean_i
+			# 				is1 = is1 + 1 
+			# 			else:
+			# 				tmp_likelihood = tmp_likelihood * (1-mean_i)
+			# 				is0 = is0 + 1 
 					# print(tmp_likelihood)
 					# print("1 has:", is1, "0 has:", is0)
 
