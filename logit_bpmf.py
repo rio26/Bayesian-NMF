@@ -6,6 +6,8 @@ from scipy.stats import multivariate_normal as mul_normal
 from utilities import Gaussian_Wishart, gaussian_error
 from numpy.linalg import inv
 from time import time
+# import multiprocessing
+# from multiprocessing import Pool
 
 class LNMF():
 	"""
@@ -15,6 +17,8 @@ class LNMF():
 	def __init__(self, A, mat, r, w1_W1, w1_H1, maxepoch = 50, max_iter = 100, burnin = 0):
 		# self.epsilon = epsilon # Learning rate
 		print("Initializing...")
+		# self.core = multiprocessing.cpu_count()
+		# self.pool = Pool(processes=multiprocessing.cpu_count()) 
 		self.maxepoch = maxepoch
 		self.Asize = A.shape[0]
 		self.wsize = mat.shape[0]
@@ -32,11 +36,11 @@ class LNMF():
 	    Parameters for Inverse-Wishart distribution
     	Assuming that parameters for both U and V are the same.
     	"""
-		self.WI_w = np.eye(r)
+		self.WI_w = np.eye(r, dtype='float64')
 		self.WI_w_inv = inv(self.WI_w)   	# rxr
 		self.mu0_w = np.zeros((r, 1))
 
-		self.WI_h = np.eye(r)
+		self.WI_h = np.eye(r, dtype='float64')
 		self.WI_h_inv = inv(self.WI_h)   	# rxr
 		self.mu0_h = np.zeros((r, 1))
 
@@ -46,7 +50,7 @@ class LNMF():
 		self.nu = df + self.r 				# fixed
 
 		"""
-		Initialization Bayesian PMF using MAP solution found by PMF
+		Initialization latent features using MAP solution found by PMF
 		"""
 		self.w1_W1_sample = w1_W1.T # (r, n)
 		self.w1_H1_sample = w1_H1.T # (r, n)
@@ -70,14 +74,14 @@ class LNMF():
 		# print(N_w, N_h)
 
 		iteration = self.max_iter
-		posterior_w_old = np.zeros(shape=(self.wsize, self.r))
-		posterior_h_old = np.zeros(shape=(self.hsize, self.r))
+		posterior_w_old = np.zeros(self.wsize, dtype='float64')
+		posterior_h_old = np.zeros(self.hsize, dtype='float64')
 
-		posterior_w_cand = np.zeros(shape=(self.wsize, self.r))
-		posterior_h_cand = np.zeros(shape=(self.hsize, self.r))
-
+		posterior_w_cand = np.zeros(self.wsize, dtype='float64')
+		posterior_h_cand = np.zeros(self.hsize, dtype='float64')
 
 		for ite in range(iteration):
+			t0 = time()
 			""" Sample hyperparameter conditioned on the current COLUMN features."""
 			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
 			w_cov = np.cov(self.w1_W1_sample) # (r,r)
@@ -85,105 +89,66 @@ class LNMF():
 			mu_tmp = ((self.b0*self.mu0_w + N_w*w_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta]
 			self.mu_w, self.alpha_w, lamd_w = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)  # mean, matrix, covariance
 
-
 			""" Sample hyperparameter conditioned on the current ROW features."""
 			h_bar = self.w1_H1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
 			h_cov = np.cov(self.w1_H1_sample) # (r,r)
 			WI_post = self.compute_wishart0(mat=self.WI_h_inv ,n =N_h, cov=h_cov, mu0=self.mu0_h, s_bar=h_bar)
 			mu_tmp = ((self.b0*self.mu0_w + N_h*h_bar)/(self.b0+N_w)).reshape((-1,))	# [self.b0+N_w] can be substituded to [self.beta]
 			self.mu_h, self.alpha_h, lamd_h = Gaussian_Wishart(mu_tmp, self.beta, WI_post, self.nu, seed=None)  # mean (5,), matrix, covariance
-			# print("size:", self.alpha_h.shape)
-			
-			""" Metropolis Hasting's random walk part"""
-			if(ite == 0):
-				for i in range(self.wsize):  # Sample W
-					tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T # (1,r)
-					tmp_likelihood = 1
-					prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-					for j in range(self.hsize):
-						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+
+
+			"""MCMC for generating latent features"""
+			posterior_w_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.wsize, component=self.w1_W1_sample, 
+				inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.1)
+
+			posterior_h_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.hsize, component=self.w1_H1_sample, 
+				inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.1)
+			t1 = time()
+			print("Iteration ", ite, " takes:", t1-t0)
+
+	def metropolis_hasting(self, mcmc_iter, component_start, component_end, component, inner_loop_size, fixed_component, posterior_old, posterior_cand, sigma):
+		for i in range(component_start, component_end):
+			update_num = 0
+			for mc in range(mcmc_iter):
+				if mc == 0:
+					tmp_com = component[:,i].reshape((-1,1)).T # (1,r)
+					tmp_likelihood = 1		
+					"""
+					# prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+					"""
+					prior = 1
+					for j in range(inner_loop_size):
+						mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
 						if(self.mat[i,j] == 1):
 							tmp_likelihood = tmp_likelihood * mean_j
 						else:
 							tmp_likelihood = tmp_likelihood * (1-mean_j)
-					posterior_w_old[i] = prior_w * tmp_likelihood
-			else:
-				for i in range(self.wsize):  # Sample W
-					tmp_w = (self.w1_W1_sample[:,i] + gaussian_error(sigma=1)).reshape((-1,1)).T # (1,r)
-					tmp_likelihood = 1
-					prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-					for j in range(self.hsize):
-						mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
+					posterior_old[i] = prior * tmp_likelihood
+				else:
+					tmp_com = (component[:,i] + gaussian_error(sigma=sigma)).reshape((-1,1)).T # (1,r)
+					tmp_likelihood = 1		
+					"""
+					# prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
+					"""
+					prior = 1
+					for j in range(inner_loop_size):
+						mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
 						if(self.mat[i,j] == 1):
 							tmp_likelihood = tmp_likelihood * mean_j
 						else:
 							tmp_likelihood = tmp_likelihood * (1-mean_j)
-					posterior_w_cand[i] = tmp_likelihood*prior_w
-					print("new ratio",posterior_w_cand[i])
-					print("old", posterior_w_old[i])
-					# minnum =  min(1, posterior_w_cand[i]/posterior_w_old[i].all())
-					# if np.random.uniform() < minnum:
-					# 	posterior_w_old[i] = posterior_w_cand[i]
-					# 	print(true)
-
-					
-
-			# tmp_w = self.w1_W1_sample + gaussian_error(num=self.r, sigma=10) # (r,n)
-			# print("tmp_w",tmp_w.shape)
-			# tmp_likelihood = 1
-			# prior_w = mul_normal.pdf(tmp_w, self.mu_w, lamd_w) #(r,)
-			# print("prior_w",prior_w.shape)
-
-			# for gibbs in range(1):
-			# 	### This can be done by multi-threads to speed up if Asize is large. ###
-			# 	for i in range(self.wsize):  # Sample W
-			# 	# for i in range(2):
-			# 		tmp_w = self.w1_W1_sample[:,i].reshape((-1,1)).T # (1,r)
-			# 		tmp_likelihood = 1
-			# 		prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-			# 		# print(wi_pdf)
-			# 		is0,is1 = 0,0
-			# 		for j in range(self.hsize):
-			# 		# for j in range(i, self.hsize):
-			# 			mean_j = self.logit_nomral_mean(a=tmp_w, b=self.w1_H1_sample[:,j].reshape((-1,1)), error=self.gaussian_errors)
-			# 			if(self.mat[i,j] == 1):
-			# 				tmp_likelihood = tmp_likelihood * mean_j
-			# 				is1 = is1 + 1 
-			# 			else:
-			# 				tmp_likelihood = tmp_likelihood * (1-mean_j)
-			# 				is0 = is0 + 1 
-			# 		if ite == 1:
-			# 			posterior_w_old = tmp_likelihood * prior_w
-			# 		else:
-			# 			minnum =  min(1, (tmp_likelihood*prior_w)/posterior_w_old)
-			# 			if np.random.uniform() < minnum:
-			# 				print(yes)
-			# 		# print(tmp_likelihood)
-			# 		# print("1 has:", is1, "0 has:", is0)
-
-			# 	for j in range(self.hsize):  # Sample W
-			# 	# for i in range(2):
-			# 		tmp_h = self.w1_H1_sample[:,j].reshape((-1,1)).T  # (1,r)
-			# 		tmp_likelihood = 1
-			# 		prior_h = mul_normal.pdf(tmp_h.T, self.mu_h, lamd_h) #(r,)
-			# 		is0,is1 = 0,0
-			# 		for i in range(self.wsize):
-			# 			mean_i = self.logit_nomral_mean(a=tmp_h, b=self.w1_W1_sample[:,i].reshape((-1,1)), error=self.gaussian_errors)
-			# 			if(self.mat[j,i] == 1):
-			# 				tmp_likelihood = tmp_likelihood * mean_i
-			# 				is1 = is1 + 1 
-			# 			else:
-			# 				tmp_likelihood = tmp_likelihood * (1-mean_i)
-			# 				is0 = is0 + 1 
-					# print(tmp_likelihood)
-					# print("1 has:", is1, "0 has:", is0)
-
-# np.random.binomial(size=3, n=1, p= 0.5)
+					posterior_cand[i] = tmp_likelihood*prior
+					# print( min(1, posterior_cand[i]/posterior_old[i]))
+					if np.random.uniform() < min(1, posterior_cand[i]/posterior_old[i]):
+						posterior_old[i] = posterior_cand[i]
+						update_num = update_num + 1
+			# print("update_num for column", i, "is", update_num)
+		return posterior_old
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
 		wi = inv(mat + n*cov + (self.b0*n*np.dot(mu0-s_bar,(mu0-s_bar).T))/(self.b0+n))
-		print("computed and obtained size", wi.shape)
-		return (wi+wi.T)/2
+		# print("computed and obtained wishart's size", wi.shape)
+		return (wi+wi.T)/2 # wi and wi.T should be the same, this is used to garantee symmetricy.
 
 	# MC for finding the mean of logit normal
 	def logit_nomral_mean(self, a,b, error):
@@ -196,8 +161,6 @@ class LNMF():
 
 	def logistic(self,x):
 		return 1.0 / (1.0 + np.exp(-x))
-
-
 
 	def convert_triplets(file):
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""

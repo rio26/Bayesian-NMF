@@ -6,7 +6,8 @@ import networkx as nx
 from logit_bpmf import LNMF
 from pmf import PMF
 
-
+import numpy as np
+from scipy.stats import multivariate_normal
 
 """ read .gml & initialize triplets data form """
 G = nx.read_gml('data/dolphins-v62-e159/dolphins.gml') # 62 vertices
