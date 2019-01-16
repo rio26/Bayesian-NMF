@@ -98,25 +98,24 @@ class LNMF():
 
 
 			"""MCMC for generating latent features"""
-			posterior_w_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.wsize, component=self.w1_W1_sample, 
+			posterior_w_old =  self.metropolis_hasting(mcmc_iter=100, component_start=0, component_end=self.wsize, lamd = lamd_w, component=self.w1_W1_sample, 
 				inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.1)
 
-			posterior_h_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.hsize, component=self.w1_H1_sample, 
+			posterior_h_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.hsize, lamd = lamd_h, component=self.w1_H1_sample, 
 				inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.1)
 			t1 = time()
 			print("Iteration ", ite, " takes:", t1-t0)
 
-	def metropolis_hasting(self, mcmc_iter, component_start, component_end, component, inner_loop_size, fixed_component, posterior_old, posterior_cand, sigma):
+	def metropolis_hasting(self, mcmc_iter, component_start, component_end, lamd, component, inner_loop_size, fixed_component, posterior_old, posterior_cand, sigma):
 		for i in range(component_start, component_end):
 			update_num = 0
+			t3 = time()
 			for mc in range(mcmc_iter):
 				if mc == 0:
 					tmp_com = component[:,i].reshape((-1,1)).T # (1,r)
 					tmp_likelihood = 1		
-					"""
-					# prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-					"""
-					prior = 1
+					prior = mul_normal.pdf(tmp_com, self.mu_w, lamd) # num
+					
 					for j in range(inner_loop_size):
 						mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
 						if(self.mat[i,j] == 1):
@@ -142,7 +141,8 @@ class LNMF():
 					if np.random.uniform() < min(1, posterior_cand[i]/posterior_old[i]):
 						posterior_old[i] = posterior_cand[i]
 						update_num = update_num + 1
-			# print("update_num for column", i, "is", update_num)
+			print("Iteration ", i, " takes:", time()-t3)
+			print("update_num for column", i, "is", update_num)
 		return posterior_old
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):

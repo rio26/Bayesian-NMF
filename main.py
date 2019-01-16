@@ -16,7 +16,7 @@ matsize = mat.shape[0]
 # PMF.convert_triplets('test_case1.txt', mat)
 
 
-r=5
+r=20
 
 """  PMF  """
 A = PMF.read_triplets(file='test_case1.txt')
