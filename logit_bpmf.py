@@ -14,13 +14,13 @@ class LNMF():
 	A - adjancency matrix
 	r - number of features
 	"""
-	def __init__(self, A, mat, r, w1_W1, w1_H1, maxepoch = 50, max_iter = 100, burnin = 0):
+	def __init__(self, mat, r, w1_W1, w1_H1, maxepoch = 50, max_iter = 100, burnin = 0):
 		# self.epsilon = epsilon # Learning rate
-		print("Initializing...")
+		print("Initializing LNMF...")
 		# self.core = multiprocessing.cpu_count()
 		# self.pool = Pool(processes=multiprocessing.cpu_count()) 
 		self.maxepoch = maxepoch
-		self.Asize = A.shape[0]
+		# self.Asize = A.shape[0]
 		self.wsize = mat.shape[0]
 		self.hsize = mat.shape[1]
 		self.burnin = burnin
@@ -28,7 +28,7 @@ class LNMF():
 		self.mat = mat
 		self.r = r
 		self.max_iter = max_iter
-		self.mean_a = np.sum(A[:,2]) / self.Asize
+		# self.mean_a = np.sum(A[:,2]) / self.Asize
 		self.gaussian_errors = gaussian_error(sigma=1, num=10000) ## check sigma later
 		self.error_trend = np.zeros((max_iter))
 
@@ -54,8 +54,8 @@ class LNMF():
 		"""
 		self.w1_W1_sample = w1_W1.T # (r, n)
 		self.w1_H1_sample = w1_H1.T # (r, n)
-		print("Input sample size, W: ", self.w1_W1_sample.shape,\
-			"\nInput sample size, H: ", self.w1_H1_sample.shape)
+		# print("Input sample size, W: ", self.w1_W1_sample.shape,\
+		# 	"\nInput sample size, H: ", self.w1_H1_sample.shape)
 
 		self.mu_w = np.array([w1_W1.mean(0)]).T
 		self.alpha_w = np.eye(r)
@@ -64,6 +64,8 @@ class LNMF():
 		self.mu_h = np.array([w1_H1.mean(0)]).T
 		self.alpha_h = np.eye(r)
 		# self.alpha_h = inv(np.cov(w1_H1))
+
+		self.pred_matrix = np.copy(mat)
 
 		print("LNMF Initialization done.")
 
@@ -81,6 +83,7 @@ class LNMF():
 		posterior_h_cand = np.zeros(self.hsize, dtype='float64')
 
 		for ite in range(iteration):
+			print("[running iteration ", ite , "...]")
 			t0 = time()
 			""" Sample hyperparameter conditioned on the current COLUMN features."""
 			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
@@ -98,11 +101,11 @@ class LNMF():
 
 
 			"""MCMC for generating latent features"""
-			posterior_w_old =  self.metropolis_hasting(mcmc_iter=100, component_start=0, component_end=self.wsize, lamd = lamd_w, component=self.w1_W1_sample, 
-				inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.1)
+			posterior_w_old =  self.metropolis_hasting(mcmc_iter=50, component_start=0, component_end=self.wsize, lamd = lamd_w, component=self.w1_W1_sample, 
+				inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.01)
 
-			posterior_h_old =  self.metropolis_hasting(mcmc_iter=25, component_start=0, component_end=self.hsize, lamd = lamd_h, component=self.w1_H1_sample, 
-				inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.1)
+			posterior_h_old =  self.metropolis_hasting(mcmc_iter=50, component_start=0, component_end=self.hsize, lamd = lamd_h, component=self.w1_H1_sample, 
+				inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.01)
 			t1 = time()
 			print("Iteration ", ite, " takes:", t1-t0)
 
@@ -137,10 +140,13 @@ class LNMF():
 						else:
 							tmp_likelihood = tmp_likelihood * (1-mean_j)
 					posterior_cand[i] = tmp_likelihood*prior
+					# print(posterior_cand[i])
 					# print( min(1, posterior_cand[i]/posterior_old[i]))
 					if np.random.uniform() < min(1, posterior_cand[i]/posterior_old[i]):
 						posterior_old[i] = posterior_cand[i]
 						update_num = update_num + 1
+						component[:,i] = tmp_com.T.reshape((-1,))
+						# print("need to check some value here", (tmp_com.T.reshape((-1,))).shape)
 			print("Iteration ", i, " takes:", time()-t3)
 			print("update_num for column", i, "is", update_num)
 		return posterior_old
@@ -161,6 +167,11 @@ class LNMF():
 
 	def logistic(self,x):
 		return 1.0 / (1.0 + np.exp(-x))
+
+	def predict(self,i,j):
+		p = self.w1_W1_sample[:,i].T * self.w1_H1_sample[:,j]
+		print(p)
+		return np.random.binomial(1, p)
 
 	def convert_triplets(file):
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""
