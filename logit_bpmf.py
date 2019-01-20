@@ -6,6 +6,7 @@ from scipy.stats import multivariate_normal as mul_normal
 from utilities import Gaussian_Wishart, gaussian_error
 from numpy.linalg import inv
 from time import time
+import warnings
 # import multiprocessing
 # from multiprocessing import Pool
 
@@ -20,7 +21,6 @@ class LNMF():
 		# self.core = multiprocessing.cpu_count()
 		# self.pool = Pool(processes=multiprocessing.cpu_count()) 
 		self.maxepoch = maxepoch
-		# self.Asize = A.shape[0]
 		self.wsize = mat.shape[0]
 		self.hsize = mat.shape[1]
 		self.burnin = burnin
@@ -28,8 +28,8 @@ class LNMF():
 		self.mat = mat
 		self.r = r
 		self.max_iter = max_iter
-		# self.mean_a = np.sum(A[:,2]) / self.Asize
 		self.gaussian_errors = gaussian_error(sigma=1, num=10000) ## check sigma later
+		# self.error_trend = np.zeros((int(max_iter/10)))
 		self.error_trend = np.zeros((max_iter))
 
 		"""
@@ -76,14 +76,22 @@ class LNMF():
 		# print(N_w, N_h)
 
 		iteration = self.max_iter
-		posterior_w_old = np.zeros(self.wsize, dtype='float64')
-		posterior_h_old = np.zeros(self.hsize, dtype='float64')
+		posterior_w_old = np.float64(0)
+		posterior_h_old = np.float64(0)
 
-		posterior_w_cand = np.zeros(self.wsize, dtype='float64')
-		posterior_h_cand = np.zeros(self.hsize, dtype='float64')
+		posterior_w_cand = np.float64(0)
+		posterior_h_cand = np.float64(0)
 
 		for ite in range(iteration):
 			print("[running iteration ", ite , "...]")
+			# if (ite % 10 == 0):
+			# 	self.error_trend[ite%10] = self.predict_accuracy()
+			# 	print("Current error:", self.error_trend[ite%10])
+			self.error_trend[ite] = self.predict_accuracy()
+			print(self.error_trend[ite])
+			with open('result.txt','a') as f:
+				f.write('Iteration {} has accuracy {}\n'.format(ite, self.error_trend[ite]))
+			f.close()
 			t0 = time()
 			""" Sample hyperparameter conditioned on the current COLUMN features."""
 			w_bar = self.w1_W1_sample.mean(axis=1).reshape((-1,1))  # (n, 1)
@@ -101,54 +109,69 @@ class LNMF():
 
 
 			"""MCMC for generating latent features"""
-			posterior_w_old =  self.metropolis_hasting(mcmc_iter=50, component_start=0, component_end=self.wsize, lamd = lamd_w, component=self.w1_W1_sample, 
-				inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.01)
+			with warnings.catch_warnings():
+				warnings.filterwarnings('error')
+				posterior_w_old =  self.metropolis_hasting(mcmc_iter=15, component_start=0, component_end=self.wsize, 
+					lamd = lamd_w, component=self.w1_W1_sample, inner_loop_size=self.hsize, fixed_component=self.w1_H1_sample, 
+					posterior_old=posterior_w_old, posterior_cand=posterior_w_cand, sigma=0.5)
 
-			posterior_h_old =  self.metropolis_hasting(mcmc_iter=50, component_start=0, component_end=self.hsize, lamd = lamd_h, component=self.w1_H1_sample, 
-				inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.01)
+				posterior_h_old =  self.metropolis_hasting(mcmc_iter=15, component_start=0, component_end=self.hsize, 
+					lamd = lamd_h, component=self.w1_H1_sample, inner_loop_size=self.wsize, fixed_component=self.w1_W1_sample, 
+					posterior_old=posterior_h_old, posterior_cand=posterior_h_cand, sigma=0.5)
 			t1 = time()
 			print("Iteration ", ite, " takes:", t1-t0)
 
 	def metropolis_hasting(self, mcmc_iter, component_start, component_end, lamd, component, inner_loop_size, fixed_component, posterior_old, posterior_cand, sigma):
 		for i in range(component_start, component_end):
-			update_num = 0
 			t3 = time()
+			update_num = 0
+			warn = 0
 			for mc in range(mcmc_iter):
 				if mc == 0:
 					tmp_com = component[:,i].reshape((-1,1)).T # (1,r)
-					tmp_likelihood = 1		
-					prior = mul_normal.pdf(tmp_com, self.mu_w, lamd) # num
-					
-					for j in range(inner_loop_size):
-						mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
-						if(self.mat[i,j] == 1):
-							tmp_likelihood = tmp_likelihood * mean_j
-						else:
-							tmp_likelihood = tmp_likelihood * (1-mean_j)
-					posterior_old[i] = prior * tmp_likelihood
+					tmp_likelihood = 0
+					try: # if posterior isn't -inf
+						prior = np.log(mul_normal.pdf(tmp_com, self.mu_w, lamd)) # num
+						### Compute likelihood ###
+						for j in range(inner_loop_size):
+							mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
+							if(self.mat[i,j] == 1):
+								tmp_likelihood = tmp_likelihood + np.log(mean_j)
+							else:
+								tmp_likelihood = tmp_likelihood + np.log(1-mean_j)
+
+						posterior_old= prior + tmp_likelihood
+					except Warning: # if posterior is -inf
+						warn = warn + 1
+						posterior_old = 0
 				else:
 					tmp_com = (component[:,i] + gaussian_error(sigma=sigma)).reshape((-1,1)).T # (1,r)
-					tmp_likelihood = 1		
-					"""
-					# prior_w = mul_normal.pdf(tmp_w.T, self.mu_w, lamd_w) #(r,)
-					"""
-					prior = 1
-					for j in range(inner_loop_size):
-						mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
-						if(self.mat[i,j] == 1):
-							tmp_likelihood = tmp_likelihood * mean_j
-						else:
-							tmp_likelihood = tmp_likelihood * (1-mean_j)
-					posterior_cand[i] = tmp_likelihood*prior
-					# print(posterior_cand[i])
-					# print( min(1, posterior_cand[i]/posterior_old[i]))
-					if np.random.uniform() < min(1, posterior_cand[i]/posterior_old[i]):
-						posterior_old[i] = posterior_cand[i]
-						update_num = update_num + 1
-						component[:,i] = tmp_com.T.reshape((-1,))
-						# print("need to check some value here", (tmp_com.T.reshape((-1,))).shape)
-			print("Iteration ", i, " takes:", time()-t3)
-			print("update_num for column", i, "is", update_num)
+					tmp_likelihood = 0		
+					try: # if new posterior isn't -inf
+						prior = np.log(mul_normal.pdf(tmp_com, self.mu_w, lamd)) # num
+							### Compute likelihood ###
+						for j in range(inner_loop_size):
+							mean_j = self.logit_nomral_mean(a=tmp_com, b=fixed_component[:,j].reshape((-1,1)), error=self.gaussian_errors)
+							if(self.mat[i,j] == 1):
+								tmp_likelihood = tmp_likelihood + np.log(mean_j)
+							else:
+								tmp_likelihood = tmp_likelihood + np.log(1-mean_j)
+						# print("tmp_likelihood:", tmp_likelihood, "\n-------------------------------------")
+						posterior_cand = tmp_likelihood + prior
+						if posterior_old == 0: # if old posterior is -inf
+							posterior_old = posterior_cand
+							update_num = update_num + 1
+							component[:,i] = tmp_com.T.reshape((-1,))
+						else: # if old posterior isn't -inf
+							if  np.random.uniform() < min(1, np.power(10, posterior_cand/posterior_old)):
+								posterior_old = posterior_cand
+								update_num = update_num + 1
+								component[:,i] = tmp_com.T.reshape((-1,))
+					except Warning: # if new posterior is -inf
+						warn = warn + 1
+						continue
+			print("Update_num and Total MCMC steps for column with warnings", i, "is[", update_num, mcmc_iter, warn,"]")
+			print("Column ", i, " takes:", time()-t3)
 		return posterior_old
 
 	def compute_wishart0(self, mat, n, cov, mu0,s_bar):
@@ -169,9 +192,28 @@ class LNMF():
 		return 1.0 / (1.0 + np.exp(-x))
 
 	def predict(self,i,j):
-		p = self.w1_W1_sample[:,i].T * self.w1_H1_sample[:,j]
-		print(p)
+		a = self.w1_W1_sample[:,i].reshape((-1,1)).T
+		b = self.w1_H1_sample[:,j]
+		p = np.dot(a,b)
+		# print(a.shape, b.shape )
+		# print(p.shape)
 		return np.random.binomial(1, p)
+
+	def predict_accuracy(self):
+		count = 0
+		correct = 0
+		with open('data/facebook/missing_terms.txt','r') as ff:
+			# with open('data/facebook/missing_terms.txt','a') as ff:
+			for line in ff:
+				count = count + 1
+				line=line.split()#split the line up into a list - the first entry will be the node, the others his friends
+				# print("type checking:", line[0], type(line[1]))
+				if self.predict(int(line[0]), int(line[1])) == 1:
+					correct = correct + 1
+		ratio = correct/count
+		print("Predict [", count, "] entries has correct numbers: [", correct ,"]\nCorrect prediction ratio is:", correct/count)
+		ff.close()
+		return ratio
 
 	def convert_triplets(file):
 		"""======= create a Triplets: {w_id, h_id, binary_link} ======="""

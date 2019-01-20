@@ -72,7 +72,11 @@ r=10
 # print("w0: ", w0)
 # print("h0: ", h0)
 # print("w0 and h0 has shape: ", w0.shape, h0.shape, "\n")
-""""""
+
+# with open('result.txt','a') as f:
+# 	f.write('w0 {}, h0 {}\n'.format(w0,h0))
+# f.close()
+
 
 """  Bayesian NMF  """
 w0, h0 = np.zeros((A_test.shape[0], r)),  np.zeros((A_test.shape[0], r))
@@ -81,17 +85,7 @@ A_test_upper = np.triu(A_test)
 lnmf = LNMF(A_test_upper, r=r, w1_W1=w0, w1_H1=h0, max_iter = 100)
 lnmf.mh_train()
 
+error = lnmf.predict_accuracy()
+print("Final accuracy is:", error)
 
-count = 0
-correct = 0
-with open('data/facebook/missing_terms.txt','r') as ff:
-	
-	# with open('data/facebook/missing_terms.txt','a') as ff:
-	for line in f:
-		count = count + 1
-		line=line.split()#split the line up into a list - the first entry will be the node, the others his friends
-		if lnmf.predict(line[0], line[1]) == 1:
-			correct = correct + 1
 
-print("Predict [", count, "] entries has correct numbers: [", correct ,"]\nCorrect prediction ratio is:", correct/count)
-ff.close()
