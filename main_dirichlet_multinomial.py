@@ -7,6 +7,11 @@ import networkx as nx
 from logit_bpmf import LNMF
 from pmf import PMF
 
+""" Initialization """
+r=10
+
+
+
 """Importing data."""
 G_full = nx.Graph()
 G_test = nx.Graph()
@@ -47,14 +52,23 @@ A_test = nx.adjacency_matrix(G_test).todense()
 t1 = time()
 print("Importing finished. The test matrix has shape:", A_test.shape, "\n")
 
+"""  Bayesian NMF  """
+w0, h0 = np.zeros((A_test.shape[0], r)),  np.zeros((A_test.shape[0], r))
+A_test_upper = np.triu(A_test)
+# mat_lower = np.tril(mat)
+lnmf = LNMF(A_test_upper, r=r, w1_W1=w0, w1_H1=h0, max_iter = 100)
+lnmf.mh_train()
+
+error = lnmf.predict_accuracy()
+print("Final accuracy is:", error)
+
+
 # """ read .gml & initialize triplets data form """
 # G = nx.read_gml('data/dolphins-v62-e159/dolphins.gml') # 62 vertices
 # mat = nx.adjacency_matrix(G).todense()   #(62，62)
 # matsize = mat.shape[0]
 # # PMF.convert_triplets('test_case1.txt', mat)
 
-
-r=10
 
 """ PMF """
 """ Will run it at the final test"""
@@ -78,14 +92,6 @@ r=10
 # f.close()
 
 
-"""  Bayesian NMF  """
-w0, h0 = np.zeros((A_test.shape[0], r)),  np.zeros((A_test.shape[0], r))
-A_test_upper = np.triu(A_test)
-# mat_lower = np.tril(mat)
-lnmf = LNMF(A_test_upper, r=r, w1_W1=w0, w1_H1=h0, max_iter = 100)
-lnmf.mh_train()
 
-error = lnmf.predict_accuracy()
-print("Final accuracy is:", error)
 
 
