@@ -1,2 +1,2 @@
 # Bayesian-NMF
-BUGS.
+There are still bugs not fixed.
